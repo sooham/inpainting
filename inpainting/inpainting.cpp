@@ -5,6 +5,11 @@
 //  Created by Sooham Rafiz on 2016-05-16.
 //  Copyright © 2016 Sooham Rafiz. All rights reserved.
 
+
+// TODO: Read up on Compiler Return Value Optimization
+// you don't need to return pointers to internal data
+// TODO: also read on this:  https://www.wikiwand.com/en/Resource_Acquisition_Is_Initialization
+
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/core/core.hpp"
@@ -35,20 +40,41 @@ std::vector<std::vector<cv::Point>> *get_boundary(const cv::Mat &mask) {
     // dynamically allocate memory for this vector
     // TODO: delete memory later outside of function
     // TODO: also change memory allocation from C style to C++ exception style
-    std::vector<std::vector<cv::Point>> *contour = new (std::nothrow) std::vector<std::vector<cv::Point>>;
+    std::vector<std::vector<cv::Point>> *contours = new (std::nothrow) std::vector<std::vector<cv::Point>>;
     
-    if (!contour) {
+    if (!contours) {
         std::cerr << "Memory allocation failed (malloc)" << std::endl;
         std::exit(-1);
     }
     std::vector<cv::Vec4i> hierarchy;
     
     // get the boundary from the mask using findCountours
-    cv::findContours(mask.clone(), *contour, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
+    cv::findContours(mask.clone(), *contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
     
-    return contour;
+    // TODO: delete draw contours
+    // draw the contours to verify
+    cv::Mat drawing = cv::Mat::zeros(mask.size(), CV_8UC1);
+    
+    for (int i = 0; i < contours->size(); i++) {
+        cv::Scalar color(rand() & 255, rand() & 255, rand() & 255);
+        // TODO: better drawings please
+        cv::drawContours(drawing, *contours, i, color, 2, 8, hierarchy, 0, cv::Point());
+    }
+    
+    // TODO: contour includes images edge pixels, remove these unneeded pictures
+    cv::namedWindow("Contours");
+    cv::imshow("Contours", drawing);
+    cv::waitKey(0);
+    cv::destroyWindow("Contours");
+    return contours;
 }
 
+
+// get a patch of size radius around Point p in Mat
+cv::Mat get_radius(cv::Mat image, cv::Point &p, int r=0) {
+    // uses return value optimization
+    return image(cv::Rect(p.x, p.y, 1+2*r, 1+2*r));
+}
 
 
 int main( int argc, const char** argv )
@@ -133,8 +159,8 @@ int main( int argc, const char** argv )
     
     // TODO: I'm using single precision floating point, so alls good
     
-    
-    
+    std::vector<std::vector<cv::Point>> *contours = get_boundary(mask);
+
     
     return 0;
 }
