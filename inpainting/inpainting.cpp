@@ -11,6 +11,7 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 #include <sstream>
 
 // takes in an image and the binary mask, adds the appropriate alpha channel
@@ -24,6 +25,30 @@
 // function to set the data
 
 // function to get the priority of a patch
+
+// get the center of a patch at point p
+
+// get the boundary of a CV_8UC1 matrix featuring a closed shape
+
+std::vector<std::vector<cv::Point>> *get_boundary(const cv::Mat &mask) {
+    // the vector holds the boundary elements for the mask
+    // dynamically allocate memory for this vector
+    // TODO: delete memory later outside of function
+    // TODO: also change memory allocation from C style to C++ exception style
+    std::vector<std::vector<cv::Point>> *contour = new (std::nothrow) std::vector<std::vector<cv::Point>>;
+    
+    if (!contour) {
+        std::cerr << "Memory allocation failed (malloc)" << std::endl;
+        std::exit(-1);
+    }
+    std::vector<cv::Vec4i> hierarchy;
+    
+    // get the boundary from the mask using findCountours
+    cv::findContours(mask.clone(), *contour, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
+    
+    return contour;
+}
+
 
 
 int main( int argc, const char** argv )
@@ -107,6 +132,8 @@ int main( int argc, const char** argv )
     cv::destroyWindow("img_in_cie");
     
     // TODO: I'm using single precision floating point, so alls good
+    
+    
     
     
     return 0;
