@@ -9,6 +9,7 @@
 // TODO: Read up on Compiler Return Value Optimization
 // you don't need to return pointers to internal data
 // TODO: also read on this:  https://www.wikiwand.com/en/Resource_Acquisition_Is_Initialization
+// TODO: openGL / GPU support on android
 
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -58,7 +59,7 @@ std::vector<std::vector<cv::Point>> *get_boundary(const cv::Mat &mask) {
     for (int i = 0; i < contours->size(); i++) {
         cv::Scalar color(rand() & 255, rand() & 255, rand() & 255);
         // TODO: better drawings please
-        cv::drawContours(drawing, *contours, i, color, 2, 8, hierarchy, 0, cv::Point());
+        cv::drawContours(drawing, *contours, i, color, 1, 8, hierarchy, 1, cv::Point());
     }
     
     // TODO: contour includes images edge pixels, remove these unneeded pictures
@@ -73,7 +74,10 @@ std::vector<std::vector<cv::Point>> *get_boundary(const cv::Mat &mask) {
 // get a patch of size radius around Point p in Mat
 cv::Mat get_radius(cv::Mat image, cv::Point &p, int r=0) {
     // uses return value optimization
-    return image(cv::Rect(p.x, p.y, 1+2*r, 1+2*r));
+    // make sure roi is in the boundary of image
+    
+    // if (0 <= p.x && p.x <= image.cols && 0 <= p.y && p.y <= image.rows) TODO
+    return image(cv::Range(std::max(0, p.y-r), std::min(image.rows, p.y+r)), cv::Range(std::max(0, p.x-r), std::min(image.cols, p.x+r)));
 }
 
 
@@ -112,6 +116,9 @@ int main( int argc, const char** argv )
     img_in.convertTo(img_in, CV_32F);
     
     img_in = img_in / 255.0f;
+    
+    mask = (mask == 0); // negate the mask to play well with find countours
+    
     
     std::cerr << "img_in aspects" << std::endl << std::endl;
     std::cerr << "\tchannels: " << img_in.channels() << std::endl;
@@ -160,7 +167,27 @@ int main( int argc, const char** argv )
     // TODO: I'm using single precision floating point, so alls good
     
     std::vector<std::vector<cv::Point>> *contours = get_boundary(mask);
-
+    
+    // show the image as we continue the algorithm
+    cv::namedWindow("Algorithm progress");
+    
+    // iterate over the contours one by one
+    for (int i = 0; i < contours->size(); ++i) {
+        std::vector<cv::Point> contour = (*contours)[i];
+        for (int j = 0; j < contour.size(); ++j) {
+            // get the patch on a contour
+            std::cerr << "value at " << j << " is " <<contour[j] << std::endl;
+            cv::Mat patch = get_radius(img_in, contour[j], 2);
+            // draw the patch and point on img_in
+            cv::rectangle(img_in, cv::Rect(contour[j].x-2, contour[j].y-2, 5, 5), cv::Scalar(0,255,0));
+            cv::circle(img_in, contour[j], 0, cv::Scalar(0,0,255));
+            cv::imshow("Algorithm progress", img_in);
+            cv::waitKey(5);
+        }
+    }
+    cv::waitKey(0);
+    cv::destroyWindow("Algorihtm progress");
+    
     
     return 0;
 }
