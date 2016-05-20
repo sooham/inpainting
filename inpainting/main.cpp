@@ -82,7 +82,8 @@ int main (int argc, char** argv) {
         psiHatPColor = getPatch(colorMat, psiHatPCenter);
         
         // get the patch in source with least distance to above patch
-        psiHatQCenter = getClosestPatchPoint<float>(cieMat, psiHatPCie, maskMat);
+        psiHatQCenter = getClosestPatchPoint(cieMat, psiHatPCie, maskMat);
+
         
         // updates
         // fill in cieMat

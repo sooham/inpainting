@@ -90,6 +90,7 @@ void getDerivatives(const cv::Mat& grayMat, cv::Mat& dx, cv::Mat& dy)
     cv::Sobel(grayMat, dy, -1, 0, 1, -1);
 }
 
+
 // get the normal of a dense list of boundary point centered around point p
 cv::Vec2d getNormal(const contour_t& contour, const cv::Point& point)
 {
@@ -136,6 +137,7 @@ cv::Vec2d getNormal(const contour_t& contour, const cv::Point& point)
     return normal;
 }
 
+
 // get the position of the maximum in a Mat
 template <typename T> cv::Point getMaxPosition(cv::Mat& mat) {
     int x = 0, y = 0;
@@ -149,17 +151,19 @@ template <typename T> cv::Point getMaxPosition(cv::Mat& mat) {
         {
             max = *rowMax;
             y = r;
-            x = rowMax - row;
+            x = (int) (rowMax - row);
         }
     }
     return cv::Point(x, y);
 }
+
 
 // get the confidence
 double computeConfidence(const cv::Mat& confidencePatch)
 {
     return cv::sum(confidencePatch)[0] / (double) confidencePatch.total();
 }
+
 
 // go over contours and compute the priority of each patch
 void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat priorityMat)
@@ -220,22 +224,21 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
     }
 }
 
-// get poin of patch with minimum euclidean distance in source to a given contour centered patch
-template <typename T> cv::Point getClosestPatchPoint(
-                                                     const cv::Mat& imageMat,
-                                                     const cv::Mat& psiHatP,
-                                                     const cv::Mat& mask
-                                              ) {
-    
-    cv::Mat patch;      // temporary patch from imageMat
-    cv::Mat localMask;  // local mask used for norm calculaiton
-    double localNorm;   // temporary norm in loop
-    double minNorm;     // globally minNorm
+
+// get point of patch with minimum euclidean distance in source to a given contour centered patch
+ cv::Point getClosestPatchPoint(const cv::Mat& imageMat,
+                                const cv::Mat& psiHatP,
+                                const cv::Mat& mask)
+{
+ 
+    cv::Mat patch;                  // temporary patch from imageMat
+    cv::Mat localMask;              // local mask used for norm calculaiton
+    double localNorm;               // temporary norm in loop
+    double minNorm = 0;             // globally minNorm
     int patchX = 0, patchY = 0;     // result variables
-    
+ 
     for (int y = 0; y < imageMat.rows; ++y)
     {
-        T* row = imageMat.ptr<T>(y);
         for (int x = 0; x < imageMat.cols; ++x)
         {
             patch = getPatch(imageMat, cv::Point(x, y));
@@ -256,6 +259,7 @@ template <typename T> cv::Point getClosestPatchPoint(
             }
         }
     }
-    
+ 
     return cv::Point(patchX, patchY);
-}
+ }
+
