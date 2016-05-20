@@ -14,10 +14,6 @@ typedef std::vector<std::vector<cv::Point>> contours_t;
 typedef std::vector<cv::Vec4i> hierarchy_t;
 typedef std::vector<cv::Point> contour_t;
 
-struct gradients {
-    cv::Mat dx;
-    cv::Mat dy;
-};
 
 // the radius of a patch
 // results in 9x9 patches
@@ -29,21 +25,34 @@ struct gradients {
 #define border_radius 4
 
 void loadInpaintingImages(
-                         const std::string& colorFilename,
-                         const std::string& maskFilename,
-                         cv::Mat& colorMat, cv::Mat& maskMat);
+                          const std::string& colorFilename,
+                          const std::string& maskFilename,
+                          cv::Mat& colorMat,
+                          cv::Mat& maskMat,
+                          cv::Mat& grayMat,
+                          cv::Mat& cieMat);
 
 void showMat(const cv::String &winname, const cv::Mat& mat);
 
 void getContours(const cv::Mat& mask, contours_t& contours, hierarchy_t& hierarchy);
 
+double computeConfidence(const cv::Mat& confidencePatch);
+
 cv::Mat getPatch(const cv::Mat& image, const cv::Point& p);
 
-gradients getDerivatives(const cv::Mat& image, const cv::Point& p);
+void getDerivatives(const cv::Mat& grayMat, cv::Mat& dx, cv::Mat& dy);
 
 cv::Vec2d getNormal(const contour_t& contour, const cv::Point& point);
 
-template <typename T>
-cv::Point getMaxPosition(cv::Mat& mat);
+template <typename T> cv::Point getMaxPosition(cv::Mat& mat);
+
+void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat& priorityMat);
+
+template <typename T> cv::Point getClosestPatchPoint(
+                                              const cv::Mat& imageMat,
+                                              const cv::Mat& psiHatP,
+                                              const cv::Mat& mask
+                                              );
+
 
 #endif

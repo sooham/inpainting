@@ -19,63 +19,88 @@
 int main (int argc, char** argv) {
     
     // --------------- read filename strings ------------------
-    std::string inputFilename, maskFilename;
+    std::string colorFilename, maskFilename;
     
-    if (argc >= 3) {
-        inputFilename = argv[1];
+    if (argc == 3) {
+        colorFilename = argv[1];
         maskFilename = argv[2];
     } else {
-        std::cerr << "input images not provided" << std::endl;
+        std::cerr << "Usage ./inpainting colorImageFile maskImageFile" << std::endl;
         return -1;
     }
     
     // ---------------- read the images ------------------------
-    cv::Mat inputImageColor, inputImageMask, inputImageCie;
-    loadInpaintingImages(inputFilename, maskFilename, inputImageColor, inputImageMask);
+    cv::Mat colorMat, maskMat, grayMat, cieMat;
+    loadInpaintingImages(
+                         colorFilename,
+                         maskFilename,
+                         colorMat,
+                         maskMat,
+                         grayMat,
+                         cieMat);
     
     // show the images for testing
-    showMat("color", inputImageColor);
-    showMat("mask", inputImageMask);
+    showMat("color", colorMat);
+    showMat("mask", maskMat);
+    showMat("CIE", cieMat);
     
-    // ---------------- convert inputImageColor to inputImageCIE ---------------
-    // CIE will be used when comparing euclidean distance between patches
-    cv::cvtColor(inputImageColor, inputImageCie, cv::COLOR_BGR2Lab);
-    showMat("CIE", inputImageCie);
+    cv::Mat confidenceMat;     // holds the confidence values
+    maskMat.convertTo(confidenceMat, CV_32F);
+    confidenceMat = confidenceMat / 255.0f;
     
     // ---------------- start the algorithm -----------------
-    // get the contour
-    contours_t contours;
-    hierarchy_t hierarchy;
-    getContours((inputImageMask == 0), contours, hierarchy);
     
-    // draw the contour
-    cv::Mat contourMat(inputImageMask.size(), inputImageMask.type(), cv::Scalar(0));
-    for (int i = 0; i < contours.size(); ++i)
-    {
-        contour_t contour = contours[i];
-        for (int j = 0; j < contour.size(); ++j)
-        {
-            contourMat.ptr(contour[j].y)[contour[j].x] = 255;
-        }
-    }
-    
-    showMat("contour", contourMat);
-    
-    // initial computations
+    contours_t contours;            // mask contours
+    hierarchy_t hierarchy;          // contour hierarchy
+    cv::Mat priorityMat(
+                        maskMat.size(),
+                        CV_32FC1,
+                        cv::Scalar_<float>(0.0f)
+                        );          // priority value matrix for each contour point
+    cv::Point psiHatPCenter;        // the center Point of psiHatP patch
+    cv::Mat psiHatPCie;             // psiHatP patch in Lab colorspace
+    cv::Mat psiHatPGray;            // psiHatP patch in Gray colorspace
+    cv::Mat psiHatPColor;           // psiHatP patch in BGR colorspace
+    cv::Mat psiHatPConfidenceMat;   // psiHatP patch confidence mat
+    double psiHatPConfidence;       // psiHatP patch confidence C(psiHatPMask)
+    cv::Point psiHatQCenter;        // the center Point of psiHatQ patch
     
     // main loop
-    const size_t area = inputImageMask.total();
-    while (cv::countNonZero(inputImageMask) != area)
+    const size_t area = maskMat.total();
+    
+    while (cv::countNonZero(maskMat) != area) // end when target is filled
     {
+        // get the contours of mask
+        getContours((maskMat == 0), contours, hierarchy);
+        // compute the priority for all contour points
+        computePriority(contours, grayMat, confidenceMat, priorityMat);
         // get the patch with the greatest priority
-        // you need to compute the data for all patches on contour
+        psiHatPCenter = getMaxPosition<float>(priorityMat);
+        psiHatPConfidenceMat = getPatch(confidenceMat, psiHatPCenter);
+        psiHatPCie = getPatch(cieMat, psiHatPCenter);
+        psiHatPGray = getPatch(grayMat, psiHatPCenter);
+        psiHatPColor = getPatch(colorMat, psiHatPCenter);
         
         // get the patch in source with least distance to above patch
+        psiHatQCenter = getClosestPatchPoint<float>(cieMat, psiHatPCie, maskMat);
         
-        // fillin cinputImageColor patch area
+        // updates
+        // fill in cieMat
+        psiHatPCie += ((psiHatPConfidenceMat == 0.0f) & getPatch(cieMat, psiHatQCenter));
+        // fill in grayMat
+        psiHatPGray += ((psiHatPConfidenceMat == 0.0f) & getPatch(grayMat, psiHatQCenter));
+        // fill in colorMat
+        psiHatPColor += ((psiHatPConfidenceMat == 0.0f) & getPatch(colorMat, psiHatQCenter));
         
-        // update inputImage mask confidences
-
+        // fill in confidenceMat with confidences C(pixel) = C(psiHatP)
+        psiHatPConfidence = computeConfidence(psiHatPConfidenceMat);
+        // set psiHatPMask(x,y) = psiHatPConfidence if psiHatPMask(x, y) == 0
+        CV_Assert((psiHatPConfidenceMat == 0.0f).type() == CV_8UC1);
+        psiHatPConfidenceMat += ((psiHatPConfidenceMat == 0.0f) & psiHatPConfidence);
+        
+        // update maskMat
+        // maskMat is all non-zero elements in confidenceMat
+        maskMat = (psiHatPConfidence != 0.0f);
     }
     return 0;
 }

@@ -11,4 +11,4 @@
 
 #include <stdio.h>
 
-#endif /* inpainting_hpp */
+#endif
