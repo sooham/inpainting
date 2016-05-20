@@ -42,7 +42,7 @@ cv::Mat getPatch(const cv::Mat& image, const cv::Point& p);
 
 void getDerivatives(const cv::Mat& grayMat, cv::Mat& dx, cv::Mat& dy);
 
-cv::Vec2d getNormal(const contour_t& contour, const cv::Point& point);
+cv::Vec2f getNormal(const contour_t& contour, const cv::Point& point);
 
 template <typename T> cv::Point getMaxPosition(cv::Mat& mat);
 

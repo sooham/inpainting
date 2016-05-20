@@ -1,4 +1,4 @@
-//
+    //
 //  main.cpp
 //  inpainting
 //
@@ -39,11 +39,6 @@ int main (int argc, char** argv) {
                          grayMat,
                          cieMat);
     
-    // show the images for testing
-    showMat("color", colorMat);
-    showMat("mask", maskMat);
-    showMat("CIE", cieMat);
-    
     cv::Mat confidenceMat;     // holds the confidence values
     maskMat.convertTo(confidenceMat, CV_32F);
     confidenceMat = confidenceMat / 255.0f;
@@ -65,15 +60,31 @@ int main (int argc, char** argv) {
     double psiHatPConfidence;       // psiHatP patch confidence C(psiHatPMask)
     cv::Point psiHatQCenter;        // the center Point of psiHatQ patch
     
+    // TODO delete (this is the contour)
+    cv::Mat c(maskMat.size(), maskMat.type());
+    cv::namedWindow("confidence");
+    // end delete
+    
     // main loop
     const size_t area = maskMat.total();
     
     while (cv::countNonZero(maskMat) != area) // end when target is filled
     {
+        // TODO: delete
+        std::cerr << "new loop iteration" << std::endl;
+        // end delete
+        
         // get the contours of mask
         getContours((maskMat == 0), contours, hierarchy);
+        
+        std::cerr << "computing priorities for all contours" << std::endl;
         // compute the priority for all contour points
         computePriority(contours, grayMat, confidenceMat, priorityMat);
+        
+        // TODO: delete
+        showMat("priority", priorityMat);
+        // end delete
+        
         // get the patch with the greatest priority
         psiHatPCenter = getMaxPosition<float>(priorityMat);
         psiHatPConfidenceMat = getPatch(confidenceMat, psiHatPCenter);
@@ -81,27 +92,29 @@ int main (int argc, char** argv) {
         psiHatPGray = getPatch(grayMat, psiHatPCenter);
         psiHatPColor = getPatch(colorMat, psiHatPCenter);
         
-        // get the patch in source with least distance to above patch
+        // get the patch in source with least distance to psiHatPCie
         psiHatQCenter = getClosestPatchPoint(cieMat, psiHatPCie, maskMat);
 
         
         // updates
         // fill in cieMat
-        psiHatPCie += ((psiHatPConfidenceMat == 0.0f) & getPatch(cieMat, psiHatQCenter));
+        // copy shit from psiHatPCie
+        getPatch(cieMat, psiHatQCenter).copyTo(psiHatPCie, (psiHatPConfidenceMat == 0.0f));
         // fill in grayMat
-        psiHatPGray += ((psiHatPConfidenceMat == 0.0f) & getPatch(grayMat, psiHatQCenter));
+        getPatch(grayMat, psiHatQCenter).copyTo(psiHatPGray, (psiHatPConfidenceMat == 0.0f));
         // fill in colorMat
-        psiHatPColor += ((psiHatPConfidenceMat == 0.0f) & getPatch(colorMat, psiHatQCenter));
+        getPatch(colorMat, psiHatQCenter).copyTo(psiHatPColor, (psiHatPConfidenceMat == 0.0f));
         
         // fill in confidenceMat with confidences C(pixel) = C(psiHatP)
         psiHatPConfidence = computeConfidence(psiHatPConfidenceMat);
         // set psiHatPMask(x,y) = psiHatPConfidence if psiHatPMask(x, y) == 0
-        CV_Assert((psiHatPConfidenceMat == 0.0f).type() == CV_8UC1);
-        psiHatPConfidenceMat += ((psiHatPConfidenceMat == 0.0f) & psiHatPConfidence);
-        
+        psiHatPConfidenceMat.setTo((float) psiHatPConfidence, (psiHatPConfidenceMat == 0.0f));
         // update maskMat
         // maskMat is all non-zero elements in confidenceMat
-        maskMat = (psiHatPConfidence != 0.0f);
+        maskMat = (confidenceMat != 0.0f);
     }
+    
+    std::cerr << "loop has ended";
+    showMat("final result", colorMat);
     return 0;
 }
