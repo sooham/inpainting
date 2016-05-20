@@ -18,25 +18,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <sstream>
 
 #define WINDOW_RADIUS 4
-
-// takes in an image and the binary mask, adds the appropriate alpha channel
-// and returns the confidence integer map
-// mask is of type CV_8UC1 255 if target else 0
-
-// function to get the confidence of a patch
-
-// function to set the confidence of a patch
-
-// function to set the data
-
-// function to get the priority of a patch
-
-// get the center of a patch at point p
-
-// get the boundary of a CV_8UC1 matrix featuring a closed shape
 
 std::vector<std::vector<cv::Point>> *get_boundary(const cv::Mat &mask) {
     // the vector holds the boundary elements for the mask
@@ -108,11 +91,6 @@ int main( int argc, const char** argv )
         std::cerr << "input images not provided" << std::endl;
         return -1;
     }
-    
-    std::cerr << "input filename: " << in_image_file << std::endl;
-    std::cerr << "input mask: " << mask_file << std::endl;
-    std::cerr << std::endl;
-    
     
     // ------------- image reading -------------------------
     cv::Mat img_in = cv::imread(in_image_file, 1);
@@ -258,6 +236,7 @@ int main( int argc, const char** argv )
             cv::Vec2f gradient(gradient_x, gradient_y);
             
             // now what you have the gradient, you need to get the normal from the mask patch
+            
             
             // compute the data value
             
