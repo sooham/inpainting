@@ -24,6 +24,8 @@ typedef std::vector<cv::Point> contour_t;
 // resulting in borders of size 9
 #define border_radius 4
 
+int mod(int a, int b);
+
 void loadInpaintingImages(
                           const std::string& colorFilename,
                           const std::string& maskFilename,
@@ -52,5 +54,6 @@ cv::Point getClosestPatchPoint(const cv::Mat& imageMat,
                                const cv::Mat& psiHatP,
                                const cv::Mat& mask);
 
+void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& mat, const cv::Mat& maskMat);
 
 #endif

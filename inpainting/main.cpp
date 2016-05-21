@@ -1,10 +1,8 @@
-     //
+//
 //  main.cpp
 //  inpainting
 //
 //  Created by Sooham Rafiz on 2016-05-16.
-//  Copyright © 2016 Sooham Rafiz. All rights reserved.
-//
 
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -43,30 +41,39 @@ int main (int argc, char** argv) {
     maskMat.convertTo(confidenceMat, CV_32F);
     confidenceMat = confidenceMat / 255.0f;
     
+    // add borders around maskMat and confidenceMat
+    cv::copyMakeBorder(maskMat, maskMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, 255);
+    cv::copyMakeBorder(confidenceMat, confidenceMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, NAN);
+    
     // ---------------- start the algorithm -----------------
     
     contours_t contours;            // mask contours
     hierarchy_t hierarchy;          // contour hierarchy
+    
     cv::Mat priorityMat(
-                        maskMat.size(),
+                        confidenceMat.size(),
                         CV_32FC1,
                         cv::Scalar_<float>(0.0f)
                         );          // priority value matrix for each contour point
+    
     cv::Point psiHatPCenter;        // the center Point of psiHatP patch
+    
     cv::Mat psiHatPCie;             // psiHatP patch in Lab colorspace
-    cv::Mat psiHatPGray;            // psiHatP patch in Gray colorspace
-    cv::Mat psiHatPColor;           // psiHatP patch in BGR colorspace
     cv::Mat psiHatPConfidenceMat;   // psiHatP patch confidence mat
+    
     double psiHatPConfidence;       // psiHatP patch confidence C(psiHatPMask)
+    
     cv::Point psiHatQCenter;        // the center Point of psiHatQ patch
     
     
     // main loop
     const size_t area = maskMat.total();
     
-    while (cv::countNonZero(maskMat) != area) // end when target is filled
+    while (cv::countNonZero(maskMat) != area - 2*radius*(maskMat.rows + maskMat.cols - 2*radius))
+        // end when target is filled
     {
         showMat("confidence", confidenceMat);
+        showMat("mask", maskMat);
         // TODO: delete
         std::cerr << "new loop iteration" << std::endl;
         // end delete
@@ -84,23 +91,19 @@ int main (int argc, char** argv) {
         
         // get the patch with the greatest priority
         psiHatPCenter = getMaxPosition<float>(priorityMat);
+        
         psiHatPConfidenceMat = getPatch(confidenceMat, psiHatPCenter);
         psiHatPCie = getPatch(cieMat, psiHatPCenter);
-        psiHatPGray = getPatch(grayMat, psiHatPCenter);
-        psiHatPColor = getPatch(colorMat, psiHatPCenter);
         
         // get the patch in source with least distance to psiHatPCie
+        // TODO: move patch extraction to inside function getClosestPatchPoint
         psiHatQCenter = getClosestPatchPoint(cieMat, psiHatPCie, maskMat);
 
-        
         // updates
-        // fill in cieMat
-        // copy shit from psiHatPCie
-        getPatch(cieMat, psiHatQCenter).copyTo(psiHatPCie, (psiHatPConfidenceMat == 0.0f));
-        // fill in grayMat
-        getPatch(grayMat, psiHatQCenter).copyTo(psiHatPGray, (psiHatPConfidenceMat == 0.0f));
-        // fill in colorMat
-        getPatch(colorMat, psiHatQCenter).copyTo(psiHatPColor, (psiHatPConfidenceMat == 0.0f));
+        // copy from psiHatQ to psiHatP for each
+        transferPatch(psiHatQCenter, psiHatPCenter, cieMat, (maskMat == 0));
+        transferPatch(psiHatQCenter, psiHatPCenter, grayMat, (maskMat == 0));
+        transferPatch(psiHatQCenter, psiHatPCenter, colorMat, (maskMat == 0));
         
         // fill in confidenceMat with confidences C(pixel) = C(psiHatP)
         psiHatPConfidence = computeConfidence(psiHatPConfidenceMat);
@@ -108,7 +111,6 @@ int main (int argc, char** argv) {
         // set psiHatPMask(x,y) = psiHatPConfidence if psiHatPMask(x, y) == 0
         psiHatPConfidenceMat.setTo((float) psiHatPConfidence, (psiHatPConfidenceMat == 0.0f));
         // update maskMat
-        // maskMat is all non-zero elements in confidenceMat
         maskMat = (confidenceMat != 0.0f);
     }
     

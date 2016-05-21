@@ -12,7 +12,8 @@ int mod(int a, int b) {
 }
 
 
-// load the color image and the mask image
+// load the color, mask, grayscale and CIE lab image with a border of size
+// radius around every image to prevent boundary collisions when taking patches
 void loadInpaintingImages(
                           const std::string& colorFilename,
                           const std::string& maskFilename,
@@ -22,6 +23,7 @@ void loadInpaintingImages(
                           cv::Mat& cieMat)
 {
     CV_Assert(colorFilename.length() && maskFilename.length());
+    
     colorMat = cv::imread(colorFilename, 1);
     maskMat = cv::imread(maskFilename, 0);
     
@@ -32,6 +34,9 @@ void loadInpaintingImages(
     // convert colorMat to depth CV_32F;
     colorMat.convertTo(colorMat, CV_32F);
     colorMat = colorMat / 255.0f;
+    
+    // add border around colorMat and maskMat
+    cv::copyMakeBorder(colorMat, colorMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, NAN);
     
     cv::cvtColor(colorMat, grayMat, CV_BGR2GRAY);
     cv::cvtColor(colorMat, cieMat, CV_BGR2Lab);
@@ -65,23 +70,12 @@ void getContours(const cv::Mat& mask,
 // always returns a patch of size radius * 2 + 1
 cv::Mat getPatch(const cv::Mat& mat, const cv::Point& p)
 {
-    CV_Assert(0 <= p.x && p.x < mat.cols && 0 <= p.y && p.y < mat.rows);
+    CV_Assert(radius <= p.x && p.x < mat.cols-radius && radius <= p.y && p.y < mat.rows-radius);
     // if this does not work out, please just return submatrix
-    cv::Mat submatrix = mat(
-                 cv::Range(std::max(0, p.y-radius), std::min(mat.rows, p.y+radius+1)),
-                 cv::Range(std::max(0, p.x-radius), std::min(mat.cols, p.x+radius+1))
+    return  mat(
+                 cv::Range(p.y-radius, p.y+radius+1),
+                 cv::Range(p.x-radius, p.x+radius+1)
                  );
-
-    cv::Mat result(2*radius+1, 2*radius+1, mat.type(), cv::Scalar(0));
-    // get the ranges
-    int xLeftOffset = (p.x < radius) ? radius - p.x: 0;
-    int yTopOffset = (p.y < radius)?  radius - p.y: 0;
-    int xRightOffset = (mat.cols - 1 - p.x < radius) ? radius - mat.cols + p.x + 1 : 0;
-    int yBottomOffset = (mat.rows - 1 - p.y < radius) ? radius - mat.rows + p.y + 1 : 0;
-
-    submatrix.copyTo(result(cv::Range(yTopOffset, 2*radius+1- yBottomOffset), cv::Range(xLeftOffset, 2*radius +1 - xRightOffset)));
-    
-    return result;
 }
 
 
@@ -187,8 +181,8 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
               );
     
     // define some patches
-    cv::Mat confidencePatch;
-    cv::Mat magnitudePatch;
+    cv::Mat confidencePatch;    // to compute confidence of patch
+    cv::Mat magnitudePatch;     // to compute magnitude of patch
     
     cv::Vec2f normal;
     cv::Point maxPoint;
@@ -308,4 +302,17 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
  
     return cv::Point(patchX, patchY);
  }
+
+// transfer the values from patch centered at psiHatQ to patch centered at psiHatP in
+// mat according to maskMat
+void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& mat, const cv::Mat& maskMat)
+{
+    CV_Assert(maskMat.type() == CV_8U);
+    CV_Assert(mat.size() == maskMat.size());
+    CV_Assert(0 <= psiHatQ.x && psiHatQ.x <= mat.cols && 0 <= psiHatQ.y && psiHatQ.y <= mat.cols);
+    CV_Assert(0 <= psiHatP.x && psiHatP.x <= mat.cols && 0 <= psiHatP.y && psiHatP.y <= mat.cols);
+    
+    // copy contents of psiHatQ to psiHatP with mask
+    getPatch(mat, psiHatQ).copyTo(getPatch(mat, psiHatP), getPatch(maskMat, psiHatP));
+}
 
