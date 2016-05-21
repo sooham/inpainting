@@ -1,4 +1,4 @@
-#include "utils.hpp"
+ #include "utils.hpp"
 
 // utility functions needed for inpainting
 
@@ -62,14 +62,26 @@ void getContours(const cv::Mat& mask,
 
 
 // get a patch of size radius around patchCenter in Mat
+// always returns a patch of size radius * 2 + 1
 cv::Mat getPatch(const cv::Mat& mat, const cv::Point& p)
 {
     CV_Assert(0 <= p.x && p.x < mat.cols && 0 <= p.y && p.y < mat.rows);
-    
-    return mat(
-                 cv::Range(std::max(0, p.y-radius), std::min(mat.rows, p.y+radius)),
-                 cv::Range(std::max(0, p.x-radius), std::min(mat.cols, p.x+radius))
+    // if this does not work out, please just return submatrix
+    cv::Mat submatrix = mat(
+                 cv::Range(std::max(0, p.y-radius), std::min(mat.rows, p.y+radius+1)),
+                 cv::Range(std::max(0, p.x-radius), std::min(mat.cols, p.x+radius+1))
                  );
+
+    cv::Mat result(2*radius+1, 2*radius+1, mat.type(), cv::Scalar(0));
+    // get the ranges
+    int xLeftOffset = (p.x < radius) ? radius - p.x: 0;
+    int yTopOffset = (p.y < radius)?  radius - p.y: 0;
+    int xRightOffset = (mat.cols - 1 - p.x < radius) ? radius - mat.cols + p.x + 1 : 0;
+    int yBottomOffset = (mat.rows - 1 - p.y < radius) ? radius - mat.rows + p.y + 1 : 0;
+
+    submatrix.copyTo(result(cv::Range(yTopOffset, 2*radius+1- yBottomOffset), cv::Range(xLeftOffset, 2*radius +1 - xRightOffset)));
+    
+    return result;
 }
 
 
@@ -216,6 +228,7 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
             
             // get confidence of patch
             confidence = cv::sum(confidencePatch)[0] / (double) confidencePatch.total();
+            CV_Assert(0 <= confidence && confidence <= 1.0f);
             
             // get the normal to the border around point
             normal = getNormal(contour, point);
@@ -231,28 +244,30 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
             std::cerr << "normal is: " << normal << std::endl;
             std::cerr << "maximum gradient at point: " << maxPoint << std::endl;
             std::cerr << "gradient is: [" << getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x] << ", "
-            << -getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x] << ")" << std::endl;
+            << -getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x] << "]" << std::endl;
             
             // draw the contour with debugging information
             cv::Mat drawMat = contourMat.clone();
             cv::rectangle(drawMat, cv::Point(std::max(0, point.x-radius), std::max(0, point.y-radius)),
-                          cv::Point(std::min(drawMat.cols, point.x+radius), std::min(drawMat.rows, point.y+radius)), cv::Scalar(255, 0, 0));
-            cv::arrowedLine(drawMat, point, point + cv::Point(normal[0], normal[1]), cv::Scalar(0, 255, 0));
+                          cv::Point(std::min(drawMat.cols, point.x+radius), std::min(drawMat.rows, point.y+radius)), cv::Scalar(255));
+            cv::arrowedLine(drawMat, point, point + cv::Point(normal[0], normal[1]), cv::Scalar(255));
             // normalize gradient
             cv::Vec2f normalized_gradient;
             cv::normalize(cv::Vec2f(getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x], -getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x]), normalized_gradient);
-            cv::arrowedLine(drawMat, point, point + cv::Point(normalized_gradient[0], normalized_gradient[1]), cv::Scalar(0, 0, 255));
+            cv::arrowedLine(drawMat, point, point + cv::Point(normalized_gradient[0], normalized_gradient[1]), cv::Scalar(255));
             // show drawMat
             cv::imshow("contour (green = normal) (red = gradient) (blue = bounding box)", drawMat);
-            cv::waitKey(0);
+            cv::waitKey(5);
             // end delete
             
-            priority = confidence * std::abs(normal[0] * getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x] - normal[1] * getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x])/ 255.0;
+            priority = confidence * std::abs(normal[0] * getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x] - normal[1] * getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x]);
             
             // set the priority in priorityMat
             priorityMat.ptr<float>(point.y)[point.x] = (float) priority;
         }
     }
+    
+    cv::destroyWindow("contour (green = normal) (red = gradient) (blue = bounding box)");
 }
 
 

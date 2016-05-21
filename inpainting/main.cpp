@@ -1,4 +1,4 @@
-    //
+     //
 //  main.cpp
 //  inpainting
 //
@@ -60,16 +60,13 @@ int main (int argc, char** argv) {
     double psiHatPConfidence;       // psiHatP patch confidence C(psiHatPMask)
     cv::Point psiHatQCenter;        // the center Point of psiHatQ patch
     
-    // TODO delete (this is the contour)
-    cv::Mat c(maskMat.size(), maskMat.type());
-    cv::namedWindow("confidence");
-    // end delete
     
     // main loop
     const size_t area = maskMat.total();
     
     while (cv::countNonZero(maskMat) != area) // end when target is filled
     {
+        showMat("confidence", confidenceMat);
         // TODO: delete
         std::cerr << "new loop iteration" << std::endl;
         // end delete
@@ -107,6 +104,7 @@ int main (int argc, char** argv) {
         
         // fill in confidenceMat with confidences C(pixel) = C(psiHatP)
         psiHatPConfidence = computeConfidence(psiHatPConfidenceMat);
+        CV_Assert(0 <= psiHatPConfidence && psiHatPConfidence <= 1.0f);
         // set psiHatPMask(x,y) = psiHatPConfidence if psiHatPMask(x, y) == 0
         psiHatPConfidenceMat.setTo((float) psiHatPConfidence, (psiHatPConfidenceMat == 0.0f));
         // update maskMat
