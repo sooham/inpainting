@@ -43,7 +43,7 @@ int main (int argc, char** argv) {
     
     // add borders around maskMat and confidenceMat
     cv::copyMakeBorder(maskMat, maskMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, 255);
-    cv::copyMakeBorder(confidenceMat, confidenceMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, NAN);
+    cv::copyMakeBorder(confidenceMat, confidenceMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, 0.001);
     
     // ---------------- start the algorithm -----------------
     
@@ -52,9 +52,9 @@ int main (int argc, char** argv) {
     
     cv::Mat priorityMat(
                         confidenceMat.size(),
-                        CV_32FC1,
-                        cv::Scalar_<float>(0.0f)
-                        );          // priority value matrix for each contour point
+                        CV_32FC1);  // priority value matrix for each contour point
+    
+    CV_Assert(colorMat.size() == grayMat.size() && grayMat.size() == confidenceMat.size() && colorMat.size() == maskMat.size());
     
     cv::Point psiHatPCenter;        // the center Point of psiHatP patch
     
@@ -69,25 +69,17 @@ int main (int argc, char** argv) {
     // main loop
     const size_t area = maskMat.total();
     
-    while (cv::countNonZero(maskMat) != area - 2*radius*(maskMat.rows + maskMat.cols - 2*radius))
+    while (cv::countNonZero(maskMat) != area)
         // end when target is filled
     {
-        showMat("confidence", confidenceMat);
-        showMat("mask", maskMat);
-        // TODO: delete
-        std::cerr << "new loop iteration" << std::endl;
-        // end delete
+        // set priority matrix to 0
+        priorityMat.setTo(0.0f);
         
         // get the contours of mask
         getContours((maskMat == 0), contours, hierarchy);
         
-        std::cerr << "computing priorities for all contours" << std::endl;
         // compute the priority for all contour points
         computePriority(contours, grayMat, confidenceMat, priorityMat);
-        
-        // TODO: delete
-        showMat("priority", priorityMat);
-        // end delete
         
         // get the patch with the greatest priority
         psiHatPCenter = getMaxPosition<float>(priorityMat);
@@ -108,13 +100,12 @@ int main (int argc, char** argv) {
         // fill in confidenceMat with confidences C(pixel) = C(psiHatP)
         psiHatPConfidence = computeConfidence(psiHatPConfidenceMat);
         CV_Assert(0 <= psiHatPConfidence && psiHatPConfidence <= 1.0f);
-        // set psiHatPMask(x,y) = psiHatPConfidence if psiHatPMask(x, y) == 0
+        // update confidence
         psiHatPConfidenceMat.setTo((float) psiHatPConfidence, (psiHatPConfidenceMat == 0.0f));
         // update maskMat
         maskMat = (confidenceMat != 0.0f);
     }
     
-    std::cerr << "loop has ended";
-    showMat("final result", colorMat);
+    showMat("final result", colorMat, 0);
     return 0;
 }

@@ -34,7 +34,7 @@ void loadInpaintingImages(
                           cv::Mat& grayMat,
                           cv::Mat& cieMat);
 
-void showMat(const cv::String &winname, const cv::Mat& mat);
+void showMat(const cv::String& winname, const cv::Mat& mat, int time=5);
 
 void getContours(const cv::Mat& mask, contours_t& contours, hierarchy_t& hierarchy);
 
@@ -48,7 +48,7 @@ cv::Vec2f getNormal(const contour_t& contour, const cv::Point& point);
 
 template <typename T> cv::Point getMaxPosition(cv::Mat& mat);
 
-void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat priorityMat);
+void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat& priorityMat);
 
 cv::Point getClosestPatchPoint(const cv::Mat& imageMat,
                                const cv::Mat& psiHatP,

@@ -36,7 +36,7 @@ void loadInpaintingImages(
     colorMat = colorMat / 255.0f;
     
     // add border around colorMat and maskMat
-    cv::copyMakeBorder(colorMat, colorMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, NAN);
+    cv::copyMakeBorder(colorMat, colorMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, cv::Scalar(0,0,0));
     
     cv::cvtColor(colorMat, grayMat, CV_BGR2GRAY);
     cv::cvtColor(colorMat, cieMat, CV_BGR2Lab);
@@ -44,12 +44,12 @@ void loadInpaintingImages(
 
 
 // show a mat object quickly
-void showMat(const cv::String &winname, const cv::Mat& mat)
+void showMat(const cv::String& winname, const cv::Mat& mat, int time /*= 5*/)
 {
     CV_Assert(!mat.empty());
     cv::namedWindow(winname);
     cv::imshow(winname, mat);
-    cv::waitKey(0);
+    cv::waitKey(time);
     cv::destroyWindow(winname);
 }
 
@@ -173,7 +173,7 @@ double computeConfidence(const cv::Mat& confidencePatch)
 
 
 // go over contours and compute the priority of each patch
-void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat priorityMat)
+void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat& priorityMat)
 {
     CV_Assert(grayMat.type() == CV_32FC1 &&
               priorityMat.type() == CV_32FC1 &&
@@ -204,12 +204,6 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
     // for each point in contour
     cv::Point point;
     
-    // TODO: delete
-    cv::namedWindow("contour (green = normal) (red = gradient) (blue = bounding box)");
-    cv::Mat contourMat(grayMat.size(), CV_8UC1, cv::Scalar(0));
-    cv::drawContours(contourMat, contours, -1, cv::Scalar(255, 255, 255));
-    // end delete
-    
     for (int i = 0; i < contours.size(); ++i)
     {
         contour_t contour = contours[i];
@@ -231,37 +225,12 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
             magnitudePatch = getPatch(maskedMagnitude, point);
             maxPoint = getMaxPosition<float>(magnitudePatch);
             
-            // TODO: delete
-            // print information
-            std::cerr << "point: " << point << std::endl;
-            std::cerr << "confidence of patch is: " << confidence << std::endl;
-            std::cerr << "normal is: " << normal << std::endl;
-            std::cerr << "maximum gradient at point: " << maxPoint << std::endl;
-            std::cerr << "gradient is: [" << getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x] << ", "
-            << -getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x] << "]" << std::endl;
-            
-            // draw the contour with debugging information
-            cv::Mat drawMat = contourMat.clone();
-            cv::rectangle(drawMat, cv::Point(std::max(0, point.x-radius), std::max(0, point.y-radius)),
-                          cv::Point(std::min(drawMat.cols, point.x+radius), std::min(drawMat.rows, point.y+radius)), cv::Scalar(255));
-            cv::arrowedLine(drawMat, point, point + cv::Point(normal[0], normal[1]), cv::Scalar(255));
-            // normalize gradient
-            cv::Vec2f normalized_gradient;
-            cv::normalize(cv::Vec2f(getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x], -getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x]), normalized_gradient);
-            cv::arrowedLine(drawMat, point, point + cv::Point(normalized_gradient[0], normalized_gradient[1]), cv::Scalar(255));
-            // show drawMat
-            cv::imshow("contour (green = normal) (red = gradient) (blue = bounding box)", drawMat);
-            cv::waitKey(5);
-            // end delete
-            
             priority = confidence * std::abs(normal[0] * getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x] - normal[1] * getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x]);
             
             // set the priority in priorityMat
             priorityMat.ptr<float>(point.y)[point.x] = (float) priority;
         }
     }
-    
-    cv::destroyWindow("contour (green = normal) (red = gradient) (blue = bounding box)");
 }
 
 
@@ -277,25 +246,22 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
     double minNorm = 0;             // globally minNorm
     int patchX = 0, patchY = 0;     // result variables
  
-    for (int y = 0; y < imageMat.rows; ++y)
+    for (int y = radius; y < imageMat.rows-radius; ++y)
     {
-        for (int x = 0; x < imageMat.cols; ++x)
+        for (int x = radius; x < imageMat.cols-radius; ++x)
         {
             patch = getPatch(imageMat, cv::Point(x, y));
             localMask = getPatch(mask, cv::Point(x, y));
             localNorm = cv::norm(psiHatP, patch, cv::NORM_L2, localMask);
-            if (x == 0 && y == 0)
+            if (x == radius && y == radius)
             {
                 minNorm = localNorm;
             }
-            else
+            else if (localNorm < minNorm)
             {
-                if (localNorm < minNorm)
-                {
-                    minNorm = localNorm;
-                    patchX = x;
-                    patchY = y;
-                }
+                minNorm = localNorm;
+                patchX = x;
+                patchY = y;
             }
         }
     }
@@ -309,8 +275,8 @@ void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& 
 {
     CV_Assert(maskMat.type() == CV_8U);
     CV_Assert(mat.size() == maskMat.size());
-    CV_Assert(0 <= psiHatQ.x && psiHatQ.x <= mat.cols && 0 <= psiHatQ.y && psiHatQ.y <= mat.cols);
-    CV_Assert(0 <= psiHatP.x && psiHatP.x <= mat.cols && 0 <= psiHatP.y && psiHatP.y <= mat.cols);
+    CV_Assert(radius <= psiHatQ.x && psiHatQ.x < mat.cols-radius && radius <= psiHatQ.y && psiHatQ.y < mat.rows-radius);
+    CV_Assert(radius <= psiHatP.x && psiHatP.x < mat.cols-radius && radius <= psiHatP.y && psiHatP.y < mat.rows-radius);
     
     // copy contents of psiHatQ to psiHatP with mask
     getPatch(mat, psiHatQ).copyTo(getPatch(mat, psiHatP), getPatch(maskMat, psiHatP));
