@@ -1,6 +1,7 @@
- #include "utils.hpp"
+  #include "utils.hpp"
 
 // utility functions needed for inpainting
+// TODO: algebraic notation instead
 
 // TODO: use perror and other C functions pls
 
@@ -40,6 +41,7 @@ void loadInpaintingImages(
     
     cv::cvtColor(colorMat, grayMat, CV_BGR2GRAY);
     cv::cvtColor(colorMat, cieMat, CV_BGR2Lab);
+    cieMat /= 255.0f;
 }
 
 
@@ -71,7 +73,6 @@ void getContours(const cv::Mat& mask,
 cv::Mat getPatch(const cv::Mat& mat, const cv::Point& p)
 {
     CV_Assert(radius <= p.x && p.x < mat.cols-radius && radius <= p.y && p.y < mat.rows-radius);
-    // if this does not work out, please just return submatrix
     return  mat(
                  cv::Range(p.y-radius, p.y+radius+1),
                  cv::Range(p.x-radius, p.x+radius+1)
@@ -90,15 +91,26 @@ void getDerivatives(const cv::Mat& grayMat, cv::Mat& dx, cv::Mat& dy)
 }
 
 
-// get the normal of a dense list of boundary point centered around point p
-cv::Vec2f getNormal(const contour_t& contour, const cv::Point& point)
+// get the unit normal of a dense list of boundary point centered around point p
+cv::Point2f getNormal(const contour_t& contour, const cv::Point& point)
 {
     int sz = (int) contour.size();
     
     CV_Assert(sz != 0);
+    
     int pointIndex = (int) (std::find(contour.begin(), contour.end(), point) - contour.begin());
     
     CV_Assert(pointIndex != contour.size());
+    
+    if (sz == 1)
+    {
+        return cv::Point2f(1.0f, 0.0f);
+    } else if (sz < 2 * border_radius + 1)
+    {
+        // return the normal with respect to adjacent neigbourhood
+        cv::Point adj = contour[(pointIndex + 1) % sz] - contour[pointIndex];
+        return cv::Point2f(adj.y, -adj.x) / cv::norm(adj);
+    }
     
     // create X and Y mat to SVD
     cv::Mat X(cv::Size(2, 2*border_radius+1), CV_32F);
@@ -109,10 +121,11 @@ cv::Vec2f getNormal(const contour_t& contour, const cv::Point& point)
     
     int i = mod((pointIndex - border_radius), sz);
     
-    float *Xrow;
-    float *Yrow;
+    float* Xrow;
+    float* Yrow;
     
     int count = 0;
+    int countXequal = 0;
     while (count < 2*border_radius+1)
     {
         Xrow = X.ptr<float>(count);
@@ -122,11 +135,22 @@ cv::Vec2f getNormal(const contour_t& contour, const cv::Point& point)
         Yrow = Y.ptr<float>(count);
         Yrow[0] = contour[i].y;
         
+        if (Xrow[0] == contour[pointIndex].x)
+        {
+            ++countXequal;
+        }
+        
         i = mod(i+1, sz);
         ++count;
     }
     
-    // you have the needed points in contourWindow, now you perform least Squares
+    if (countXequal == count)
+    {
+        return cv::Point2f(1.0f, 0.0f);
+    }
+    // TODO: weighted least squares
+    
+    // you have the needed points in contourWindow, now you perform weighted least Squares
     // to find the line of best fit
     cv::Mat sol;
     cv::solve(X, Y, sol, cv::DECOMP_SVD);
@@ -134,34 +158,9 @@ cv::Vec2f getNormal(const contour_t& contour, const cv::Point& point)
     CV_Assert(sol.type() == CV_32F);
     
     float slope = sol.ptr<float>(0)[0];
-    cv::Vec2f normal(-slope, 1);
-    cv::normalize(normal, normal);
+    cv::Point2f normal(-slope, 1);
     
-    return normal;
-}
-
-
-// get the position of the maximum in a Mat
-template <typename T> cv::Point getMaxPosition(cv::Mat& mat) {
-    int x = 0, y = 0;
-    T max = 0;
-    
-    for (int r = 0; r < mat.rows; ++r)
-    {
-        T *row = mat.ptr<T>(r);
-        T *rowMax = std::max_element(row, row+mat.cols);
-        if (max < *rowMax)
-        {
-            max = *rowMax;
-            y = r;
-            x = (int) (rowMax - row);
-        }
-    }
-    
-    double testmin, testmax;
-    cv::minMaxLoc(mat, &testmin, &testmax);
-    CV_Assert(max == testmax);
-    return cv::Point(x, y);
+    return normal / cv::norm(normal);
 }
 
 
@@ -181,23 +180,24 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
               );
     
     // define some patches
-    cv::Mat confidencePatch;    // to compute confidence of patch
-    cv::Mat magnitudePatch;     // to compute magnitude of patch
+    cv::Mat confidencePatch;
+    cv::Mat magnitudePatch;
     
-    cv::Vec2f normal;
+    cv::Point2f normal;
     cv::Point maxPoint;
+    cv::Point2f gradient;
     
     double confidence;
-    double priority;
     
     // get the derivatives and magnitude of the greyscale image
     cv::Mat dx, dy, magnitude;
     getDerivatives(grayMat, dx, dy);
-    magnitude = cv::abs(dx) + cv::abs(dy);
+    cv::magnitude(dx, dy, magnitude);
     
     // mask the magnitude
     cv::Mat maskedMagnitude(magnitude.size(), magnitude.type(), cv::Scalar(0));
     magnitude.copyTo(maskedMagnitude, (confidenceMat != 0.0f));
+    cv::erode(maskedMagnitude, maskedMagnitude, cv::Mat());
     
     CV_Assert(maskedMagnitude.type() == CV_32FC1);
     
@@ -210,6 +210,7 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
         
         for (int j = 0; j < contour.size(); ++j)
         {
+            
             point = contour[j];
             
             confidencePatch = getPatch(confidenceMat, point);
@@ -223,51 +224,19 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
             
             // get the maximum gradient in source around patch
             magnitudePatch = getPatch(maskedMagnitude, point);
-            maxPoint = getMaxPosition<float>(magnitudePatch);
-            
-            priority = confidence * std::abs(normal[0] * getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x] - normal[1] * getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x]);
+            cv::minMaxLoc(magnitudePatch, NULL, NULL, NULL, &maxPoint);
+            gradient = cv::Point2f(
+                                   -getPatch(dy, point).ptr<float>(maxPoint.y)[maxPoint.x],
+                                   getPatch(dx, point).ptr<float>(maxPoint.y)[maxPoint.x]
+                                 );
             
             // set the priority in priorityMat
-            priorityMat.ptr<float>(point.y)[point.x] = (float) priority;
+            priorityMat.ptr<float>(point.y)[point.x] = std::abs((float) confidence * gradient.dot(normal));
+            CV_Assert(priorityMat.ptr<float>(point.y)[point.x] >= 0);
         }
     }
 }
 
-
-// get point of patch with minimum euclidean distance in source to a given contour centered patch
- cv::Point getClosestPatchPoint(const cv::Mat& imageMat,
-                                const cv::Mat& psiHatP,
-                                const cv::Mat& mask)
-{
- 
-    cv::Mat patch;                  // temporary patch from imageMat
-    cv::Mat localMask;              // local mask used for norm calculaiton
-    double localNorm;               // temporary norm in loop
-    double minNorm = 0;             // globally minNorm
-    int patchX = 0, patchY = 0;     // result variables
- 
-    for (int y = radius; y < imageMat.rows-radius; ++y)
-    {
-        for (int x = radius; x < imageMat.cols-radius; ++x)
-        {
-            patch = getPatch(imageMat, cv::Point(x, y));
-            localMask = getPatch(mask, cv::Point(x, y));
-            localNorm = cv::norm(psiHatP, patch, cv::NORM_L2, localMask);
-            if (x == radius && y == radius)
-            {
-                minNorm = localNorm;
-            }
-            else if (localNorm < minNorm)
-            {
-                minNorm = localNorm;
-                patchX = x;
-                patchY = y;
-            }
-        }
-    }
- 
-    return cv::Point(patchX, patchY);
- }
 
 // transfer the values from patch centered at psiHatQ to patch centered at psiHatP in
 // mat according to maskMat
@@ -280,5 +249,37 @@ void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& 
     
     // copy contents of psiHatQ to psiHatP with mask
     getPatch(mat, psiHatQ).copyTo(getPatch(mat, psiHatP), getPatch(maskMat, psiHatP));
+}
+
+cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat& tmplateMask)
+{
+    CV_Assert(tmplateMask.type() == CV_8UC1);
+    CV_Assert(tmplateMask.size() == tmplate.size());
+    CV_Assert(tmplate.rows <= source.rows && tmplate.cols <= source.cols);
+    
+    cv::Mat result(source.size() - cv::Size(2*radius, 2*radius), CV_32FC1);
+    
+    cv::Mat sourcePatch;
+    cv::Mat maskedTmplate(tmplate.size(), tmplate.type(), cv::Scalar(0.0f));
+    tmplate.copyTo(maskedTmplate, tmplateMask);
+    
+    cv::Mat squaredDiff;
+    
+    float* row;
+    for (int y = 0; y < result.rows; ++y)
+    {
+        row = result.ptr<float>(y);
+        for (int x = 0; x < result.cols; ++x)
+        {
+            sourcePatch = getPatch(source, cv::Point(x,y) + cv::Point(radius, radius)).clone();
+            sourcePatch.setTo(0.0f, tmplateMask == 0);
+            
+            // now get the norm between maskedTmplate and sourcePatch
+            cv::pow((sourcePatch - maskedTmplate), 2, squaredDiff);
+            row[x] = (float) cv::sum(squaredDiff)[0];
+        }
+    }
+    
+    return result;
 }
 

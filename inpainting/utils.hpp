@@ -44,16 +44,11 @@ cv::Mat getPatch(const cv::Mat& image, const cv::Point& p);
 
 void getDerivatives(const cv::Mat& grayMat, cv::Mat& dx, cv::Mat& dy);
 
-cv::Vec2f getNormal(const contour_t& contour, const cv::Point& point);
-
-template <typename T> cv::Point getMaxPosition(cv::Mat& mat);
+cv::Point2f getNormal(const contour_t& contour, const cv::Point& point);
 
 void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat& priorityMat);
 
-cv::Point getClosestPatchPoint(const cv::Mat& imageMat,
-                               const cv::Mat& psiHatP,
-                               const cv::Mat& mask);
-
 void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& mat, const cv::Mat& maskMat);
 
+cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat& tmplateMask);
 #endif
