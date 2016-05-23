@@ -5,4 +5,4 @@ My implementation of the algorithm described in ["Region Filling and Object Remo
 The inpainting algorithm prioritizes propagating linear structures flowing into the target region before all other low gradient structures; This results in images free of artefacts and unrealistic textures.
 
 ## Example
-<img src="./example.gif" width="50" align="center">
+<img src="./example.gif" width="150" float="right">
