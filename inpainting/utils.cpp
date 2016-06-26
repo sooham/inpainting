@@ -7,14 +7,20 @@
 
 // TODO: fix utility algorihtms for the case where patch isn't square!
 
-// return a % b correctly for negative numbers
+
+
+/* 
+ * Return a % b where % is the mathematical modulus operator.
+ */
 int mod(int a, int b) {
     return ((a % b) + b) % b;
 }
 
 
-// load the color, mask, grayscale and CIE lab image with a border of size
-// radius around every image to prevent boundary collisions when taking patches
+/*
+ * Load the color, mask, grayscale and CIE Lab images with a border of size
+ * radius around every image to prevent boundary collisions when taking patches
+ */
 void loadInpaintingImages(
                           const std::string& colorFilename,
                           const std::string& maskFilename,
@@ -23,21 +29,31 @@ void loadInpaintingImages(
                           cv::Mat& grayMat,
                           cv::Mat& cieMat)
 {
-    CV_Assert(colorFilename.length() && maskFilename.length());
+    assert(colorFilename.length() && maskFilename.length());
     
-    colorMat = cv::imread(colorFilename, 1);
-    maskMat = cv::imread(maskFilename, 0);
+    colorMat    = cv::imread(colorFilename, 1); // color
+    maskMat     = cv::imread(maskFilename, 0);  // grayscale
     
-    // TODO: convert to C assertions
-    CV_Assert(colorMat.size() == maskMat.size());
-    CV_Assert(!colorMat.empty() && !maskMat.empty());
+    std::cout << colorMat.depth() << std::endl;
     
-    // convert colorMat to depth CV_32F;
+    assert(colorMat.size() == maskMat.size());
+    assert(!colorMat.empty() && !maskMat.empty());
+    
+    // convert colorMat to depth CV_32F for colorspace conversions
     colorMat.convertTo(colorMat, CV_32F);
-    colorMat = colorMat / 255.0f;
+    colorMat /= 255.0f;
     
-    // add border around colorMat and maskMat
-    cv::copyMakeBorder(colorMat, colorMat, radius, radius, radius, radius, cv::BORDER_CONSTANT, cv::Scalar(0,0,0));
+    // add border around colorMat
+    cv::copyMakeBorder(
+                       colorMat,
+                       colorMat,
+                       RADIUS,
+                       RADIUS,
+                       RADIUS,
+                       RADIUS,
+                       cv::BORDER_CONSTANT,
+                       cv::Scalar(0,0,0)
+                       );
     
     cv::cvtColor(colorMat, grayMat, CV_BGR2GRAY);
     cv::cvtColor(colorMat, cieMat, CV_BGR2Lab);
@@ -45,10 +61,12 @@ void loadInpaintingImages(
 }
 
 
-// show a mat object quickly
-void showMat(const cv::String& winname, const cv::Mat& mat, int time /*= 5*/)
+/*
+ * Show a Mat object quickly. For testing purposes only
+ */
+void showMat(const cv::String& winname, const cv::Mat& mat, int time/*= 5*/)
 {
-    CV_Assert(!mat.empty());
+    assert(!mat.empty());
     cv::namedWindow(winname);
     cv::imshow(winname, mat);
     cv::waitKey(time);
@@ -62,7 +80,7 @@ void getContours(const cv::Mat& mask,
                  hierarchy_t& hierarchy
                  )
 {
-    CV_Assert(mask.type() == CV_8UC1);
+    assert(mask.type() == CV_8UC1);
     // get the boundary from the mask using findCountours
     cv::findContours(mask.clone(), contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
 }
@@ -72,10 +90,10 @@ void getContours(const cv::Mat& mask,
 // always returns a patch of size radius * 2 + 1
 cv::Mat getPatch(const cv::Mat& mat, const cv::Point& p)
 {
-    CV_Assert(radius <= p.x && p.x < mat.cols-radius && radius <= p.y && p.y < mat.rows-radius);
+    assert(radius <= p.x && p.x < mat.cols-radius && radius <= p.y && p.y < mat.rows-radius);
     return  mat(
-                 cv::Range(p.y-radius, p.y+radius+1),
-                 cv::Range(p.x-radius, p.x+radius+1)
+                 cv::Range(p.y-RADIUS, p.y+RADIUS+1),
+                 cv::Range(p.x-RADIUS, p.x+RADIUS+1)
                  );
 }
 
@@ -84,7 +102,7 @@ cv::Mat getPatch(const cv::Mat& mat, const cv::Point& p)
 // computed using a 3x3 Scharr filter
 void getDerivatives(const cv::Mat& grayMat, cv::Mat& dx, cv::Mat& dy)
 {
-    CV_Assert(grayMat.type() == CV_32FC1);
+    assert(grayMat.type() == CV_32FC1);
     
     cv::Sobel(grayMat, dx, -1, 1, 0, -1);
     cv::Sobel(grayMat, dy, -1, 0, 1, -1);
@@ -96,16 +114,16 @@ cv::Point2f getNormal(const contour_t& contour, const cv::Point& point)
 {
     int sz = (int) contour.size();
     
-    CV_Assert(sz != 0);
+    assert(sz != 0);
     
     int pointIndex = (int) (std::find(contour.begin(), contour.end(), point) - contour.begin());
     
-    CV_Assert(pointIndex != contour.size());
+    assert(pointIndex != contour.size());
     
     if (sz == 1)
     {
         return cv::Point2f(1.0f, 0.0f);
-    } else if (sz < 2 * border_radius + 1)
+    } else if (sz < 2 * BORDER_RADIUS + 1)
     {
         // return the normal with respect to adjacent neigbourhood
         cv::Point adj = contour[(pointIndex + 1) % sz] - contour[pointIndex];
@@ -113,20 +131,20 @@ cv::Point2f getNormal(const contour_t& contour, const cv::Point& point)
     }
     
     // create X and Y mat to SVD
-    cv::Mat X(cv::Size(2, 2*border_radius+1), CV_32F);
-    cv::Mat Y(cv::Size(1, 2*border_radius+1), CV_32F);
+    cv::Mat X(cv::Size(2, 2*BORDER_RADIUS+1), CV_32F);
+    cv::Mat Y(cv::Size(1, 2*BORDER_RADIUS+1), CV_32F);
     
-    CV_Assert(X.rows == Y.rows && X.cols == 2 && Y.cols == 1 && X.type() == Y.type()
+    assert(X.rows == Y.rows && X.cols == 2 && Y.cols == 1 && X.type() == Y.type()
               && Y.type() == CV_32F);
     
-    int i = mod((pointIndex - border_radius), sz);
+    int i = mod((pointIndex - BORDER_RADIUS), sz);
     
     float* Xrow;
     float* Yrow;
     
     int count = 0;
     int countXequal = 0;
-    while (count < 2*border_radius+1)
+    while (count < 2*BORDER_RADIUS+1)
     {
         Xrow = X.ptr<float>(count);
         Xrow[0] = contour[i].x;
@@ -155,7 +173,7 @@ cv::Point2f getNormal(const contour_t& contour, const cv::Point& point)
     cv::Mat sol;
     cv::solve(X, Y, sol, cv::DECOMP_SVD);
     
-    CV_Assert(sol.type() == CV_32F);
+    assert(sol.type() == CV_32F);
     
     float slope = sol.ptr<float>(0)[0];
     cv::Point2f normal(-slope, 1);
@@ -174,7 +192,7 @@ double computeConfidence(const cv::Mat& confidencePatch)
 // go over contours and compute the priority of each patch
 void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat& priorityMat)
 {
-    CV_Assert(grayMat.type() == CV_32FC1 &&
+    assert(grayMat.type() == CV_32FC1 &&
               priorityMat.type() == CV_32FC1 &&
               confidenceMat.type() == CV_32FC1
               );
@@ -199,7 +217,7 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
     magnitude.copyTo(maskedMagnitude, (confidenceMat != 0.0f));
     cv::erode(maskedMagnitude, maskedMagnitude, cv::Mat());
     
-    CV_Assert(maskedMagnitude.type() == CV_32FC1);
+    assert(maskedMagnitude.type() == CV_32FC1);
     
     // for each point in contour
     cv::Point point;
@@ -217,7 +235,7 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
             
             // get confidence of patch
             confidence = cv::sum(confidencePatch)[0] / (double) confidencePatch.total();
-            CV_Assert(0 <= confidence && confidence <= 1.0f);
+            assert(0 <= confidence && confidence <= 1.0f);
             
             // get the normal to the border around point
             normal = getNormal(contour, point);
@@ -232,7 +250,7 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
             
             // set the priority in priorityMat
             priorityMat.ptr<float>(point.y)[point.x] = std::abs((float) confidence * gradient.dot(normal));
-            CV_Assert(priorityMat.ptr<float>(point.y)[point.x] >= 0);
+            assert(priorityMat.ptr<float>(point.y)[point.x] >= 0);
         }
     }
 }
@@ -242,22 +260,23 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
 // mat according to maskMat
 void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& mat, const cv::Mat& maskMat)
 {
-    CV_Assert(maskMat.type() == CV_8U);
-    CV_Assert(mat.size() == maskMat.size());
-    CV_Assert(radius <= psiHatQ.x && psiHatQ.x < mat.cols-radius && radius <= psiHatQ.y && psiHatQ.y < mat.rows-radius);
-    CV_Assert(radius <= psiHatP.x && psiHatP.x < mat.cols-radius && radius <= psiHatP.y && psiHatP.y < mat.rows-radius);
+    assert(maskMat.type() == CV_8U);
+    assert(mat.size() == maskMat.size());
+    assert(radius <= psiHatQ.x && psiHatQ.x < mat.cols-radius && radius <= psiHatQ.y && psiHatQ.y < mat.rows-radius);
+    assert(radius <= psiHatP.x && psiHatP.x < mat.cols-radius && radius <= psiHatP.y && psiHatP.y < mat.rows-radius);
     
     // copy contents of psiHatQ to psiHatP with mask
     getPatch(mat, psiHatQ).copyTo(getPatch(mat, psiHatP), getPatch(maskMat, psiHatP));
 }
 
+
 cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat& tmplateMask)
 {
-    CV_Assert(tmplateMask.type() == CV_8UC1);
-    CV_Assert(tmplateMask.size() == tmplate.size());
-    CV_Assert(tmplate.rows <= source.rows && tmplate.cols <= source.cols);
+    assert(tmplateMask.type() == CV_8UC1);
+    assert(tmplateMask.size() == tmplate.size());
+    assert(tmplate.rows <= source.rows && tmplate.cols <= source.cols);
     
-    cv::Mat result(source.size() - cv::Size(2*radius, 2*radius), CV_32FC1);
+    cv::Mat result(source.size() - cv::Size(2*RADIUS, 2*RADIUS), CV_32FC1);
     
     cv::Mat sourcePatch;
     cv::Mat maskedTmplate(tmplate.size(), tmplate.type(), cv::Scalar(0.0f));
@@ -271,7 +290,7 @@ cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat&
         row = result.ptr<float>(y);
         for (int x = 0; x < result.cols; ++x)
         {
-            sourcePatch = getPatch(source, cv::Point(x,y) + cv::Point(radius, radius)).clone();
+            sourcePatch = getPatch(source, cv::Point(x,y) + cv::Point(RADIUS, RADIUS)).clone();
             sourcePatch.setTo(0.0f, tmplateMask == 0);
             
             // now get the norm between maskedTmplate and sourcePatch

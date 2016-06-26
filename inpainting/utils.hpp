@@ -4,6 +4,9 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
+#include <assert.h>
+#include <stdio.h>
+
 #include <algorithm>
 #include <vector>
 #include <string>
@@ -15,14 +18,18 @@ typedef std::vector<cv::Vec4i> hierarchy_t;
 typedef std::vector<cv::Point> contour_t;
 
 
-// the radius of a patch
-// results in 9x9 patches
-#define radius 4
+// Patch raduius
+#define RADIUS 4
+// The maximum number of pixels around a specified point on the target outline
+#define BORDER_RADIUS 4
 
+// Logging macro
+#ifdef DEBUG
+    #define LOG(...) if (DEBUG) fprintf(stderr, __VA_ARGS__)
+#else
+    #define LOG(...)
+#endif
 
-// the radius of pixels around specified point in border
-// resulting in borders of size 9
-#define border_radius 4
 
 int mod(int a, int b);
 
@@ -51,4 +58,5 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
 void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& mat, const cv::Mat& maskMat);
 
 cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat& tmplateMask);
+
 #endif
