@@ -52,7 +52,7 @@ int main (int argc, char** argv) {
                        cv::BORDER_CONSTANT, 255);
     cv::copyMakeBorder(confidenceMat, confidenceMat,
                        RADIUS, RADIUS, RADIUS, RADIUS,
-                       cv::BORDER_CONSTANT, 0.0001f);
+                       cv::BORDER_CONSTANT, 0.00001f);
     
     // ---------------- start the algorithm -----------------
     
@@ -88,24 +88,16 @@ int main (int argc, char** argv) {
     // eroded mask is used to ensure that psiHatQ is not overlapping with target
     cv::erode(maskMat, erodedMask, cv::Mat(), cv::Point(-1, -1), RADIUS);
     
-    // TODO delete
-    cv::Mat drawMat;
-    // end delete
-    
     // main loop
     const size_t area = maskMat.total();
     
     while (cv::countNonZero(maskMat) != area)   // end when target is filled
     {
         // set priority matrix to 0
-        priorityMat.setTo(0.0f);
+        priorityMat.setTo(-0.1f);
         
         // get the contours of mask
         getContours((maskMat == 0), contours, hierarchy);
-
-        // TODO: delete
-        drawMat = colorMat.clone();
-        // end delete
         
         // compute the priority for all contour points
         // TODO: multiply by confidence using elementwise multiplication
@@ -131,12 +123,6 @@ int main (int argc, char** argv) {
         
         assert(psiHatQ != psiHatP);
         
-        // TODO: delete
-        cv::rectangle(drawMat, psiHatP - cv::Point(RADIUS, RADIUS), psiHatP + cv::Point(RADIUS+1, RADIUS+1), cv::Scalar(255, 0, 0));
-        cv::rectangle(drawMat, psiHatQ - cv::Point(RADIUS, RADIUS), psiHatQ + cv::Point(RADIUS+1, RADIUS+1), cv::Scalar(0, 0, 255));
-        showMat("red - psiHatQ", drawMat);
-        // end delete
-
         // updates
         // copy from psiHatQ to psiHatP for each colorspace
         transferPatch(psiHatQ, psiHatP, cieMat, (maskMat == 0));

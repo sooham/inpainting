@@ -290,12 +290,11 @@ cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat&
         row = result.ptr<float>(y);
         for (int x = 0; x < result.cols; ++x)
         {
-            sourcePatch = getPatch(source, cv::Point(x,y) + cv::Point(RADIUS, RADIUS)).clone();
-            sourcePatch.setTo(0.0f, tmplateMask == 0);
+            sourcePatch = getPatch(source, cv::Point(x,y) + cv::Point(RADIUS, RADIUS));
+            sourcePatch.copyTo(maskedTmplate, tmplateMask == 0);
             
             // now get the norm between maskedTmplate and sourcePatch
-            cv::pow((sourcePatch - maskedTmplate), 2, squaredDiff);
-            row[x] = (float) cv::sum(squaredDiff)[0];
+            row[x] = (float) cv::norm(maskedTmplate, sourcePatch, cv::NORM_L2);
         }
     }
     
