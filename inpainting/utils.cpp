@@ -90,7 +90,7 @@ void getContours(const cv::Mat& mask,
 // always returns a patch of size radius * 2 + 1
 cv::Mat getPatch(const cv::Mat& mat, const cv::Point& p)
 {
-    assert(radius <= p.x && p.x < mat.cols-radius && radius <= p.y && p.y < mat.rows-radius);
+    assert(RADIUS <= p.x && p.x < mat.cols-RADIUS && RADIUS <= p.y && p.y < mat.rows-RADIUS);
     return  mat(
                  cv::Range(p.y-RADIUS, p.y+RADIUS+1),
                  cv::Range(p.x-RADIUS, p.x+RADIUS+1)
@@ -262,8 +262,8 @@ void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& 
 {
     assert(maskMat.type() == CV_8U);
     assert(mat.size() == maskMat.size());
-    assert(radius <= psiHatQ.x && psiHatQ.x < mat.cols-radius && radius <= psiHatQ.y && psiHatQ.y < mat.rows-radius);
-    assert(radius <= psiHatP.x && psiHatP.x < mat.cols-radius && radius <= psiHatP.y && psiHatP.y < mat.rows-radius);
+    assert(RADIUS <= psiHatQ.x && psiHatQ.x < mat.cols-RADIUS && RADIUS <= psiHatQ.y && psiHatQ.y < mat.rows-RADIUS);
+    assert(RADIUS <= psiHatP.x && psiHatP.x < mat.cols-RADIUS && RADIUS <= psiHatP.y && psiHatP.y < mat.rows-RADIUS);
     
     // copy contents of psiHatQ to psiHatP with mask
     getPatch(mat, psiHatQ).copyTo(getPatch(mat, psiHatP), getPatch(maskMat, psiHatP));
