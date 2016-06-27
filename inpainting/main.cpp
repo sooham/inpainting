@@ -1,6 +1,6 @@
 //
 //  main.cpp
-//  An example main function showcasing how to use the inpainting function
+//  An example main function showcasing how to use the inpainting function.
 //
 //  Created by Sooham Rafiz on 2016-05-16.
 
@@ -8,14 +8,17 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/core/core.hpp"
 
-#include <vector>
 #include <iostream>
 #include <string>
 
 #include "utils.hpp"
 
+/*
+ * Note: This program uses C assert() statements, define NDEBUG marco to
+ * disable assertions.
+ */
+
 int main (int argc, char** argv) {
-    
     // --------------- read filename strings ------------------
     std::string colorFilename, maskFilename;
     
@@ -52,7 +55,7 @@ int main (int argc, char** argv) {
                        cv::BORDER_CONSTANT, 255);
     cv::copyMakeBorder(confidenceMat, confidenceMat,
                        RADIUS, RADIUS, RADIUS, RADIUS,
-                       cv::BORDER_CONSTANT, 0.00001f);
+                       cv::BORDER_CONSTANT, 0.0001f);
     
     // ---------------- start the algorithm -----------------
     
@@ -93,19 +96,16 @@ int main (int argc, char** argv) {
     
     while (cv::countNonZero(maskMat) != area)   // end when target is filled
     {
-        // set priority matrix to 0
+        // set priority matrix to -.1, lower than 0 so that border area is never selected
         priorityMat.setTo(-0.1f);
         
         // get the contours of mask
         getContours((maskMat == 0), contours, hierarchy);
         
         // compute the priority for all contour points
-        // TODO: multiply by confidence using elementwise multiplication
         computePriority(contours, grayMat, confidenceMat, priorityMat);
         
         // get the patch with the greatest priority
-        // TODO: psiHat P should be a vector or a sparse matrix
-        // not a dense matrix
         cv::minMaxLoc(priorityMat, NULL, NULL, NULL, &psiHatP);
         psiHatPCie = getPatch(cieMat, psiHatP);
         // mask the psiHatPCie with source to prevent target pixels from playing a role
@@ -116,7 +116,7 @@ int main (int argc, char** argv) {
         cv::normalize(result, result, 0, 1, cv::NORM_MINMAX);
         cv::copyMakeBorder(result, result, RADIUS, RADIUS, RADIUS, RADIUS, cv::BORDER_CONSTANT, 1.0f);
         
-        result.setTo(1.0f, erodedMask == 0);
+        result.setTo(1.1f, erodedMask == 0);
         
         // get minimum point of SSD between psiHatPCie and cieMat
         cv::minMaxLoc(result, NULL, NULL, &psiHatQ);

@@ -1,11 +1,6 @@
   #include "utils.hpp"
 
 // utility functions needed for inpainting
-// TODO: algebraic notation instead
-
-// TODO: use perror and other C functions pls
-
-// TODO: fix utility algorihtms for the case where patch isn't square!
 
 
 
@@ -34,8 +29,6 @@ void loadInpaintingImages(
     colorMat    = cv::imread(colorFilename, 1); // color
     maskMat     = cv::imread(maskFilename, 0);  // grayscale
     
-    std::cout << colorMat.depth() << std::endl;
-    
     assert(colorMat.size() == maskMat.size());
     assert(!colorMat.empty() && !maskMat.empty());
     
@@ -62,7 +55,7 @@ void loadInpaintingImages(
 
 
 /*
- * Show a Mat object quickly. For testing purposes only
+ * Show a Mat object quickly. For testing purposes only.
  */
 void showMat(const cv::String& winname, const cv::Mat& mat, int time/*= 5*/)
 {
@@ -74,20 +67,22 @@ void showMat(const cv::String& winname, const cv::Mat& mat, int time/*= 5*/)
 }
 
 
-// function to extract closed boundary of a shape given the mask
+/*
+ * Extract closed boundary from mask.
+ */
 void getContours(const cv::Mat& mask,
                  contours_t& contours,
                  hierarchy_t& hierarchy
                  )
 {
     assert(mask.type() == CV_8UC1);
-    // get the boundary from the mask using findCountours
-    cv::findContours(mask.clone(), contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
+    cv::findContours(mask, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
 }
 
 
-// get a patch of size radius around patchCenter in Mat
-// always returns a patch of size radius * 2 + 1
+/*
+ * Get a patch of size RAIDUS around point p in mat.
+ */
 cv::Mat getPatch(const cv::Mat& mat, const cv::Point& p)
 {
     assert(RADIUS <= p.x && p.x < mat.cols-RADIUS && RADIUS <= p.y && p.y < mat.rows-RADIUS);
@@ -109,7 +104,9 @@ void getDerivatives(const cv::Mat& grayMat, cv::Mat& dx, cv::Mat& dy)
 }
 
 
-// get the unit normal of a dense list of boundary point centered around point p
+/*
+ * Get the unit normal of a dense list of boundary points centered around point p.
+ */
 cv::Point2f getNormal(const contour_t& contour, const cv::Point& point)
 {
     int sz = (int) contour.size();
@@ -125,11 +122,13 @@ cv::Point2f getNormal(const contour_t& contour, const cv::Point& point)
         return cv::Point2f(1.0f, 0.0f);
     } else if (sz < 2 * BORDER_RADIUS + 1)
     {
+        // Too few points in contour to use LSTSQ regression
         // return the normal with respect to adjacent neigbourhood
         cv::Point adj = contour[(pointIndex + 1) % sz] - contour[pointIndex];
         return cv::Point2f(adj.y, -adj.x) / cv::norm(adj);
     }
     
+    // Use least square regression
     // create X and Y mat to SVD
     cv::Mat X(cv::Size(2, 2*BORDER_RADIUS+1), CV_32F);
     cv::Mat Y(cv::Size(1, 2*BORDER_RADIUS+1), CV_32F);
@@ -166,9 +165,6 @@ cv::Point2f getNormal(const contour_t& contour, const cv::Point& point)
     {
         return cv::Point2f(1.0f, 0.0f);
     }
-    // TODO: weighted least squares
-    
-    // you have the needed points in contourWindow, now you perform weighted least Squares
     // to find the line of best fit
     cv::Mat sol;
     cv::solve(X, Y, sol, cv::DECOMP_SVD);
@@ -182,14 +178,19 @@ cv::Point2f getNormal(const contour_t& contour, const cv::Point& point)
 }
 
 
-// get the confidence
+/*
+ * Return the confidence of confidencePatch
+ */
 double computeConfidence(const cv::Mat& confidencePatch)
 {
     return cv::sum(confidencePatch)[0] / (double) confidencePatch.total();
 }
 
 
-// go over contours and compute the priority of each patch
+/*
+ * Iterate over every contour point in contours and compute the
+ * priority of path centered at point using grayMat and confidenceMat
+ */
 void computePriority(const contours_t& contours, const cv::Mat& grayMat, const cv::Mat& confidenceMat, cv::Mat& priorityMat)
 {
     assert(grayMat.type() == CV_32FC1 &&
@@ -256,8 +257,10 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
 }
 
 
-// transfer the values from patch centered at psiHatQ to patch centered at psiHatP in
-// mat according to maskMat
+/*
+ * Transfer the values from patch centered at psiHatQ to patch centered at psiHatP in
+ * mat according to maskMat.
+ */
 void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& mat, const cv::Mat& maskMat)
 {
     assert(maskMat.type() == CV_8U);
@@ -269,7 +272,11 @@ void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& 
     getPatch(mat, psiHatQ).copyTo(getPatch(mat, psiHatP), getPatch(maskMat, psiHatP));
 }
 
-
+/*
+ * Runs template matching with tmplate and mask tmplateMask on source.
+ * Resulting Mat is stored in result.
+ *
+ */
 cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat& tmplateMask)
 {
     assert(tmplateMask.type() == CV_8UC1);

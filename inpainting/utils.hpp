@@ -23,14 +23,6 @@ typedef std::vector<cv::Point> contour_t;
 // The maximum number of pixels around a specified point on the target outline
 #define BORDER_RADIUS 4
 
-// Logging macro
-#ifdef DEBUG
-    #define LOG(...) if (DEBUG) fprintf(stderr, __VA_ARGS__)
-#else
-    #define LOG(...)
-#endif
-
-
 int mod(int a, int b);
 
 void loadInpaintingImages(
