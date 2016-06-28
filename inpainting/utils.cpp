@@ -45,7 +45,7 @@ void loadInpaintingImages(
                        RADIUS,
                        RADIUS,
                        cv::BORDER_CONSTANT,
-                       cv::Scalar(0,0,0)
+                       cv::Scalar_<float>(0,0,0)
                        );
     
     cv::cvtColor(colorMat, grayMat, CV_BGR2GRAY);
@@ -214,7 +214,7 @@ void computePriority(const contours_t& contours, const cv::Mat& grayMat, const c
     cv::magnitude(dx, dy, magnitude);
     
     // mask the magnitude
-    cv::Mat maskedMagnitude(magnitude.size(), magnitude.type(), cv::Scalar(0));
+    cv::Mat maskedMagnitude(magnitude.size(), magnitude.type(), cv::Scalar_<float>(0));
     magnitude.copyTo(maskedMagnitude, (confidenceMat != 0.0f));
     cv::erode(maskedMagnitude, maskedMagnitude, cv::Mat());
     
@@ -286,10 +286,8 @@ cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat&
     cv::Mat result(source.size() - cv::Size(2*RADIUS, 2*RADIUS), CV_32FC1);
     
     cv::Mat sourcePatch;
-    cv::Mat maskedTmplate(tmplate.size(), tmplate.type(), cv::Scalar(0.0f));
+    cv::Mat maskedTmplate(tmplate.size(), tmplate.type(), cv::Scalar_<float>(0.0f));
     tmplate.copyTo(maskedTmplate, tmplateMask);
-    
-    cv::Mat squaredDiff;
     
     float* row;
     for (int y = 0; y < result.rows; ++y)
