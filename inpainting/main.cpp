@@ -18,6 +18,10 @@
  * disable assertions.
  */
 
+#ifndef DEBUG
+    #define DEBUG 0
+#endif
+
 int main (int argc, char** argv) {
     // --------------- read filename strings ------------------
     std::string colorFilename, maskFilename;
@@ -34,15 +38,14 @@ int main (int argc, char** argv) {
     // colorMat     - color picture + border
     // maskMat      - mask picture + border
     // grayMat      - gray picture + border
-    // cieMat       - CIE Lab picture + border
-    cv::Mat colorMat, maskMat, grayMat, cieMat;
+    cv::Mat colorMat, maskMat, grayMat;
     loadInpaintingImages(
                          colorFilename,
                          maskFilename,
                          colorMat,
                          maskMat,
-                         grayMat,
-                         cieMat);
+                         grayMat
+                         );
     
     // confidenceMat - confidence picture + border
     cv::Mat confidenceMat;
@@ -71,14 +74,13 @@ int main (int argc, char** argv) {
     
     assert(
            colorMat.size() == grayMat.size() &&
-           colorMat.size() == cieMat.size() &&
            colorMat.size() == confidenceMat.size() &&
            colorMat.size() == maskMat.size()
            );
     
     cv::Point psiHatP;          // psiHatP - point of highest confidence
     
-    cv::Mat psiHatPCie;         // cie patch around psiHatP
+    cv::Mat psiHatPColor;       // color patch around psiHatP
     
     cv::Mat psiHatPConfidence;  // confidence patch around psiHatP
     double confidence;          // confidence of psiHatPConfidence
@@ -88,8 +90,13 @@ int main (int argc, char** argv) {
     cv::Mat result;             // holds result from template matching
     cv::Mat erodedMask;         // eroded mask
     
+    cv::Mat templateMask;       // mask for template match (3 channel)
+    
     // eroded mask is used to ensure that psiHatQ is not overlapping with target
     cv::erode(maskMat, erodedMask, cv::Mat(), cv::Point(-1, -1), RADIUS);
+    
+    cv::Mat drawMat;
+    
     
     // main loop
     const size_t area = maskMat.total();
@@ -102,30 +109,41 @@ int main (int argc, char** argv) {
         // get the contours of mask
         getContours((maskMat == 0), contours, hierarchy);
         
+        if (DEBUG) {
+            drawMat = colorMat.clone();
+        }
+        
         // compute the priority for all contour points
         computePriority(contours, grayMat, confidenceMat, priorityMat);
         
         // get the patch with the greatest priority
         cv::minMaxLoc(priorityMat, NULL, NULL, NULL, &psiHatP);
-        psiHatPCie = getPatch(cieMat, psiHatP);
-        // mask the psiHatPCie with source to prevent target pixels from playing a role
+        psiHatPColor = getPatch(colorMat, psiHatP);
         psiHatPConfidence = getPatch(confidenceMat, psiHatP);
         
-        // get the patch in source with least distance to psiHatPCie wrt source of psiHatP
-        result = computeSSD(psiHatPCie, cieMat, (psiHatPConfidence != 0.0f));
-        cv::normalize(result, result, 0, 1, cv::NORM_MINMAX);
-        cv::copyMakeBorder(result, result, RADIUS, RADIUS, RADIUS, RADIUS, cv::BORDER_CONSTANT, 1.0f);
+        cv::Mat confInv = (psiHatPConfidence != 0.0f);
+        confInv.convertTo(confInv, CV_32F);
+        confInv /= 255.0f;
+        // get the patch in source with least distance to psiHatPColor wrt source of psiHatP
+        cv::Mat mergeArrays[3] = {confInv, confInv, confInv};
+        cv::merge(mergeArrays, 3, templateMask);
+        result = computeSSD(psiHatPColor, colorMat, templateMask);
         
+        // set all target regions to 1.1, which is over the maximum value possilbe
+        // from SSD
         result.setTo(1.1f, erodedMask == 0);
-        
-        // get minimum point of SSD between psiHatPCie and cieMat
+        // get minimum point of SSD between psiHatPColor and colorMat
         cv::minMaxLoc(result, NULL, NULL, &psiHatQ);
         
         assert(psiHatQ != psiHatP);
         
+        if (DEBUG) {
+        cv::rectangle(drawMat, psiHatP - cv::Point(RADIUS, RADIUS), psiHatP + cv::Point(RADIUS+1, RADIUS+1), cv::Scalar(255, 0, 0));
+        cv::rectangle(drawMat, psiHatQ - cv::Point(RADIUS, RADIUS), psiHatQ + cv::Point(RADIUS+1, RADIUS+1), cv::Scalar(0, 0, 255));
+        showMat("red - psiHatQ", drawMat);
+        }
         // updates
         // copy from psiHatQ to psiHatP for each colorspace
-        transferPatch(psiHatQ, psiHatP, cieMat, (maskMat == 0));
         transferPatch(psiHatQ, psiHatP, grayMat, (maskMat == 0));
         transferPatch(psiHatQ, psiHatP, colorMat, (maskMat == 0));
         
@@ -133,7 +151,7 @@ int main (int argc, char** argv) {
         confidence = computeConfidence(psiHatPConfidence);
         assert(0 <= confidence && confidence <= 1.0f);
         // update confidence
-        psiHatPConfidence.setTo((float) confidence, (psiHatPConfidence == 0.0f));
+        psiHatPConfidence.setTo(confidence, (psiHatPConfidence == 0.0f));
         // update maskMat
         maskMat = (confidenceMat != 0.0f);
     }

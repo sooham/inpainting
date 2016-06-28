@@ -13,7 +13,7 @@ int mod(int a, int b) {
 
 
 /*
- * Load the color, mask, grayscale and CIE Lab images with a border of size
+ * Load the color, mask, grayscale images with a border of size
  * radius around every image to prevent boundary collisions when taking patches
  */
 void loadInpaintingImages(
@@ -21,8 +21,7 @@ void loadInpaintingImages(
                           const std::string& maskFilename,
                           cv::Mat& colorMat,
                           cv::Mat& maskMat,
-                          cv::Mat& grayMat,
-                          cv::Mat& cieMat)
+                          cv::Mat& grayMat)
 {
     assert(colorFilename.length() && maskFilename.length());
     
@@ -49,8 +48,6 @@ void loadInpaintingImages(
                        );
     
     cv::cvtColor(colorMat, grayMat, CV_BGR2GRAY);
-    cv::cvtColor(colorMat, cieMat, CV_BGR2Lab);
-    cieMat /= 255.0f;
 }
 
 
@@ -279,29 +276,20 @@ void transferPatch(const cv::Point& psiHatQ, const cv::Point& psiHatP, cv::Mat& 
  */
 cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat& tmplateMask)
 {
-    assert(tmplateMask.type() == CV_8UC1);
-    assert(tmplateMask.size() == tmplate.size());
+    assert(tmplate.type() == CV_32FC3 && source.type() == CV_32FC3);
     assert(tmplate.rows <= source.rows && tmplate.cols <= source.cols);
+    assert(tmplateMask.size() == tmplate.size() && tmplate.type() == tmplateMask.type());
     
-    cv::Mat result(source.size() - cv::Size(2*RADIUS, 2*RADIUS), CV_32FC1);
+    cv::Mat result(source.rows - tmplate.rows + 1, source.cols - tmplate.cols + 1, CV_32F, 0.0f);
     
-    cv::Mat sourcePatch;
-    cv::Mat maskedTmplate(tmplate.size(), tmplate.type(), cv::Scalar_<float>(0.0f));
-    tmplate.copyTo(maskedTmplate, tmplateMask);
-    
-    float* row;
-    for (int y = 0; y < result.rows; ++y)
-    {
-        row = result.ptr<float>(y);
-        for (int x = 0; x < result.cols; ++x)
-        {
-            sourcePatch = getPatch(source, cv::Point(x,y) + cv::Point(RADIUS, RADIUS));
-            sourcePatch.copyTo(maskedTmplate, tmplateMask == 0);
-            
-            // now get the norm between maskedTmplate and sourcePatch
-            row[x] = (float) cv::norm(maskedTmplate, sourcePatch, cv::NORM_L2);
-        }
-    }
+    cv::matchTemplate(source,
+                      tmplate,
+                      result,
+                      CV_TM_SQDIFF,
+                      tmplateMask
+                      );
+    cv::normalize(result, result, 0, 1, cv::NORM_MINMAX);
+    cv::copyMakeBorder(result, result, RADIUS, RADIUS, RADIUS, RADIUS, cv::BORDER_CONSTANT, 1.1f);
     
     return result;
 }

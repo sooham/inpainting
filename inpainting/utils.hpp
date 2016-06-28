@@ -30,8 +30,7 @@ void loadInpaintingImages(
                           const std::string& maskFilename,
                           cv::Mat& colorMat,
                           cv::Mat& maskMat,
-                          cv::Mat& grayMat,
-                          cv::Mat& cieMat);
+                          cv::Mat& grayMat);
 
 void showMat(const cv::String& winname, const cv::Mat& mat, int time=5);
 
