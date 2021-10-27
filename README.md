@@ -8,7 +8,7 @@ The inpainting algorithm prioritizes propagating linear structures flowing into 
 <p style="text-align:center"><img src="./example.gif" width="300"></p>
 
 ## Compiling
-You will both CMake and OpenCV 4 installed. Then, run the following commands:
+You will need both CMake and OpenCV 4 installed. Then, run the following commands:
 ```bash
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=RELEASE
