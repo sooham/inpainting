@@ -47,7 +47,7 @@ void loadInpaintingImages(
                        cv::Scalar_<float>(0,0,0)
                        );
     
-    cv::cvtColor(colorMat, grayMat, CV_BGR2GRAY);
+    cv::cvtColor(colorMat, grayMat, cv::COLOR_BGR2GRAY);
 }
 
 
@@ -73,7 +73,7 @@ void getContours(const cv::Mat& mask,
                  )
 {
     assert(mask.type() == CV_8UC1);
-    cv::findContours(mask, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
+    cv::findContours(mask, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_NONE);
 }
 
 
@@ -285,7 +285,7 @@ cv::Mat computeSSD(const cv::Mat& tmplate, const cv::Mat& source, const cv::Mat&
     cv::matchTemplate(source,
                       tmplate,
                       result,
-                      CV_TM_SQDIFF,
+                      cv::TM_SQDIFF,
                       tmplateMask
                       );
     cv::normalize(result, result, 0, 1, cv::NORM_MINMAX);
